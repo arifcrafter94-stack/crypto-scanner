@@ -26,7 +26,7 @@ stablecoins = [
     "pyusd"
 ]
 
-filtered = []
+candidates = []
 
 for coin in coins:
 
@@ -37,35 +37,68 @@ for coin in coins:
 
     market_cap = coin.get("market_cap", 0)
     volume = coin.get("total_volume", 0)
-    change = coin.get("price_change_percentage_24h", 0)
+    change = coin.get("price_change_percentage_24h") or 0
 
     if (
         market_cap >= 50000000 and
         market_cap <= 5000000000 and
         volume >= 10000000 and
-        change > 3
+        change > 0
     ):
-        filtered.append(coin)
 
-filtered = sorted(
-    filtered,
-    key=lambda x: x["price_change_percentage_24h"],
+        volume_ratio = volume / market_cap
+
+        score = 0
+
+        # Momentum (40 markah)
+        score += min(change * 2, 40)
+
+        # Volume ratio (30 markah)
+        score += min(volume_ratio * 100, 30)
+
+        # Market cap (20 markah)
+        if market_cap < 500000000:
+            score += 20
+        elif market_cap < 1000000000:
+            score += 15
+        else:
+            score += 10
+
+        # Bonus volume besar (10 markah)
+        if volume > 50000000:
+            score += 10
+
+        candidates.append({
+            "symbol": coin["symbol"].upper(),
+            "price": coin["current_price"],
+            "change": change,
+            "market_cap": market_cap,
+            "score": round(score)
+        })
+
+candidates = sorted(
+    candidates,
+    key=lambda x: x["score"],
     reverse=True
 )
 
-message = "🚀 SPOT SCANNER V2\n\n"
+message = "🔥 TOP SPOT PICKS V3\n\n"
 
-for i, coin in enumerate(filtered[:10], start=1):
+medals = ["🥇", "🥈", "🥉"]
+
+for i, coin in enumerate(candidates[:10]):
+
+    medal = medals[i] if i < 3 else "⭐"
 
     message += (
-        f"{i}. {coin['symbol'].upper()}\n"
-        f"💰 ${coin['current_price']}\n"
-        f"📈 {coin['price_change_percentage_24h']:.2f}%\n"
-        f"🏦 MCAP ${(coin['market_cap']/1000000):.0f}M\n\n"
+        f"{medal} {coin['symbol']}\n"
+        f"Score: {coin['score']}/100\n"
+        f"Price: ${coin['price']}\n"
+        f"24H: {coin['change']:.2f}%\n\n"
     )
 
-if len(filtered) == 0:
-    message = "📭 Tiada coin memenuhi syarat hari ini."
+if len(candidates) == 0:
+    message = "📭 Tiada coin memenuhi syarat."
 
 telegram_url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
 
@@ -77,4 +110,4 @@ requests.post(
     }
 )
 
-print("Scanner V2 selesai")
+print("V3 scanner selesai")
