@@ -4,22 +4,34 @@ import requests
 TOKEN = os.environ["TELEGRAM_TOKEN"]
 CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 
-message = """
-🚀 Crypto Scanner Aktif
+url = "https://api.coingecko.com/api/v3/coins/markets"
 
-GitHub Actions berjaya berjalan.
+params = {
+    "vs_currency": "usd",
+    "order": "volume_desc",
+    "per_page": 5,
+    "page": 1
+}
 
-Ini adalah mesej ujian.
-"""
+coins = requests.get(url, params=params).json()
 
-url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+message = "🔥 TOP 5 VOLUME COINS\n\n"
+
+for i, coin in enumerate(coins, start=1):
+    message += (
+        f"{i}. {coin['symbol'].upper()}\n"
+        f"💰 Price: ${coin['current_price']}\n"
+        f"📊 Volume: ${coin['total_volume']:,}\n\n"
+    )
+
+telegram_url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
 
 requests.post(
-    url,
+    telegram_url,
     data={
         "chat_id": CHAT_ID,
         "text": message
     }
 )
 
-print("Telegram message sent")
+print("Top volume coins sent")
