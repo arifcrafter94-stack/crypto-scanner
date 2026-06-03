@@ -1,8 +1,28 @@
 import os
+import json
 import requests
 
 TOKEN = os.environ["TELEGRAM_TOKEN"]
 CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
+
+# ==========================
+# Load previous scan
+# ==========================
+
+try:
+    with open("previous_scan.json", "r") as f:
+        previous = json.load(f)
+except:
+    previous = []
+
+previous_ranks = {}
+
+for i, coin in enumerate(previous):
+    previous_ranks[coin["symbol"]] = i + 1
+
+# ==========================
+# Get CoinGecko Data
+# ==========================
 
 url = "https://api.coingecko.com/api/v3/coins/markets"
 
@@ -50,13 +70,10 @@ for coin in coins:
 
         score = 0
 
-        # Momentum (40 markah)
         score += min(change * 2, 40)
 
-        # Volume ratio (30 markah)
         score += min(volume_ratio * 100, 30)
 
-        # Market cap (20 markah)
         if market_cap < 500000000:
             score += 20
         elif market_cap < 1000000000:
@@ -64,7 +81,6 @@ for coin in coins:
         else:
             score += 10
 
-        # Bonus volume besar (10 markah)
         if volume > 50000000:
             score += 10
 
@@ -72,7 +88,6 @@ for coin in coins:
             "symbol": coin["symbol"].upper(),
             "price": coin["current_price"],
             "change": change,
-            "market_cap": market_cap,
             "score": round(score)
         })
 
@@ -82,23 +97,64 @@ candidates = sorted(
     reverse=True
 )
 
-message = "🔥 TOP SPOT PICKS V3\n\n"
+top10 = candidates[:10]
 
-medals = ["🥇", "🥈", "🥉"]
+# ==========================
+# Compare rankings
+# ==========================
 
-for i, coin in enumerate(candidates[:10]):
+alerts = []
 
-    medal = medals[i] if i < 3 else "⭐"
+for rank, coin in enumerate(top10, start=1):
+
+    symbol = coin["symbol"]
+
+    if symbol not in previous_ranks:
+
+        alerts.append(
+            f"🚨 NEW ENTRY\n"
+            f"{symbol}\n"
+            f"Rank #{rank}\n"
+            f"Score {coin['score']}"
+        )
+
+    else:
+
+        old_rank = previous_ranks[symbol]
+
+        if old_rank - rank >= 3:
+
+            alerts.append(
+                f"🔥 RANK UP\n"
+                f"{symbol}\n"
+                f"#{old_rank} → #{rank}\n"
+                f"Score {coin['score']}"
+            )
+
+# ==========================
+# Build Telegram Message
+# ==========================
+
+message = "🔥 TOP SPOT PICKS V4\n\n"
+
+for rank, coin in enumerate(top10, start=1):
 
     message += (
-        f"{medal} {coin['symbol']}\n"
+        f"{rank}. {coin['symbol']}\n"
         f"Score: {coin['score']}/100\n"
-        f"Price: ${coin['price']}\n"
         f"24H: {coin['change']:.2f}%\n\n"
     )
 
-if len(candidates) == 0:
-    message = "📭 Tiada coin memenuhi syarat."
+if alerts:
+
+    message += "\n================\n\n"
+
+    for alert in alerts[:5]:
+        message += alert + "\n\n"
+
+# ==========================
+# Send Telegram
+# ==========================
 
 telegram_url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
 
@@ -110,4 +166,11 @@ requests.post(
     }
 )
 
-print("V3 scanner selesai")
+# ==========================
+# Save latest scan
+# ==========================
+
+with open("previous_scan.json", "w") as f:
+    json.dump(top10, f)
+
+print("V4 scan selesai")
